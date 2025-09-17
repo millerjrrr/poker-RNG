@@ -2,111 +2,168 @@ import customtkinter as ctk
 import random
 import ctypes
 from ctypes import windll
+from PIL import Image, ImageTk
 
-# Appearance
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-# App setup
-app = ctk.CTk()
-app.overrideredirect(True)
-app.wm_attributes("-topmost", True)
-app.wm_attributes("-transparentcolor", "white")  # Everything white becomes invisible
+def create_rng_window(offset_x=None, offset_y=None):
+    win = ctk.CTkToplevel()
+    win.overrideredirect(True)
+    win.wm_attributes("-topmost", True)
 
-# Position: middle right
-win_width = 160
-win_height = 120
-screen_width = app.winfo_screenwidth()
-screen_height = app.winfo_screenheight()
-x = screen_width - win_width - 50
-y = int((screen_height - win_height) / 6)
-app.geometry(f"{win_width}x{win_height}+{x}+{y}")
+   # Window size
+    win_width, win_height = 100, 40
+    screen_width = win.winfo_screenwidth()
+    screen_height = win.winfo_screenheight()
 
-# Rounded corners (Windows only)
-HWND = windll.user32.GetParent(app.winfo_id())
-windll.dwmapi.DwmSetWindowAttribute(HWND, 2, ctypes.byref(ctypes.c_int(1)), 4)
-
-# Generate number
-def generate(event=None):
-    number = random.randint(1, 100)
-    display.configure(text=str(number))
-    if number <= 25:
-        display.configure(text_color="black")
-    elif number <= 50:
-        display.configure(text_color="red")
-    elif number <= 75:
-        display.configure(text_color="blue")
+    # Center position if no offset provided
+    if offset_x is None:
+        x = (screen_width - win_width) // 2
     else:
-        display.configure(text_color="green")
+        x = offset_x
+
+    if offset_y is None:
+        y = (screen_height - win_height) // 2
+    else:
+        y = offset_y
+
+    win.geometry(f"{win_width}x{win_height}+{x}+{y}")
+
+    # Rounded corners (Windows only)
+    HWND = windll.user32.GetParent(win.winfo_id())
+    windll.dwmapi.DwmSetWindowAttribute(HWND, 2, ctypes.byref(ctypes.c_int(1)), 4)
+
+    # Drag logic (anywhere)
+    def start_move(event):
+        win._drag_start_x = event.x
+        win._drag_start_y = event.y
+
+    def do_move(event):
+        x = win.winfo_pointerx() - win._drag_start_x
+        y = win.winfo_pointery() - win._drag_start_y
+        win.geometry(f"+{x}+{y}")
+
+    win.bind("<Button-1>", start_move)
+    win.bind("<B1-Motion>", do_move)
+
+    # Generate number
+    def generate():
+        number = random.randint(0, 99)
+        display.configure(text=str(number))
+        if number < 25:
+            display.configure(text_color="black")
+        elif number < 50:
+            display.configure(text_color="red")
+        elif number < 75:
+            display.configure(text_color="blue")
+        else:
+            display.configure(text_color="green")
+
+    # Close window
+    def close_window():
+        win.destroy()
+
+    # Clone window next to current window
+    def clone_window():
+        new_x = win.winfo_x() + win.winfo_width() + 10
+        new_y = win.winfo_y()
+        create_rng_window(offset_x=new_x, offset_y=new_y)
+
+    # Transparent root
+    transparent_root = ctk.CTkFrame(win, fg_color="white", corner_radius=0)
+    transparent_root.pack(fill="both", expand=True)
+
+    # Floating frame
+    floating_frame = ctk.CTkFrame(
+        master=transparent_root,
+        fg_color="#fefefe",
+        corner_radius=0,
+        width=win_width,
+        height=win_height
+    )
+    floating_frame.place(relx=0.5, rely=0.5, anchor="center")
+
+    # Layout: 3 sections
+    floating_frame.grid_rowconfigure(0, weight=1)
+    floating_frame.grid_columnconfigure(0, weight=1)
+    floating_frame.grid_columnconfigure(1, weight=2)
+    floating_frame.grid_columnconfigure(2, weight=1)
 
 
-# Close the app
-def close_app():
-    app.destroy()
 
-# Drag logic
-def start_move(event):
-    app._drag_start_x = event.x
-    app._drag_start_y = event.y
 
-def do_move(event):
-    x = app.winfo_pointerx() - app._drag_start_x
-    y = app.winfo_pointery() - app._drag_start_y
-    app.geometry(f"+{x}+{y}")
+    # Load your PNG
+    img = Image.open("logo.png").convert("RGB")  # ensure no alpha
 
-# Transparent background container
-transparent_root = ctk.CTkFrame(app, fg_color="white", corner_radius=0)
-transparent_root.pack(fill="both", expand=True)
+    # Background (solid white)
+    background = Image.new("RGB", img.size, (254, 254, 254))  # solid white
 
-# Visible floating frame (off-white)
-floating_frame = ctk.CTkFrame(
-    master=transparent_root,
-    fg_color="#fefefe",
-    corner_radius=20,
-    width=150,
-    height=90
-)
-floating_frame.place(relx=0.5, rely=0.5, anchor="center")
+    # Paste logo on background WITHOUT mask
+    background.paste(img, (0, 0))
 
-# Number display button
-display = ctk.CTkButton(
-    master=floating_frame,
-    text="-",
-    font=("Helvetica", 54, "bold"),
-    fg_color="#fefefe",
-    text_color="black",
-    corner_radius=15,
-    hover=False,
-    width=70,
-    height=50,
-    command=generate
-)
-display.place(relx=0.5, rely=0.6, anchor="center")
+    # Create CTkImage (same for light and dark to avoid recoloring)
+    spawn_image = ctk.CTkImage(light_image=background, dark_image=background, size=(40, 40))
 
-# Close "X" button
-close_btn = ctk.CTkButton(
-    master=floating_frame,
-    text="✕",
-    width=20,
-    height=20,
-    font=("Helvetica", 12),
-    fg_color="#fefefe",
-    text_color="gray",
-    hover_color="#ddd",
-    corner_radius=10,
-    command=close_app
-)
-close_btn.place(relx=0.95, rely=0.05, anchor="ne")
+    # Spawn button with image
+    spawn_btn = ctk.CTkButton(
+        master=floating_frame,
+        text="",  # no text
+        width=40,
+        height=40,
+        image=spawn_image,
+        fg_color="#fefefe",
+        hover=False,
+        corner_radius=0,
+    )
+    spawn_btn.grid(row=0, column=0, sticky="w", padx=0)
+    # Bind double-click to spawn
+    spawn_btn.bind("<Double-Button-1>", lambda e: clone_window())
 
-# ✅ Bind drag to the visible frame
-floating_frame.bind("<Button-1>", start_move)
-floating_frame.bind("<B1-Motion>", do_move)
+    # Number display (middle)
+    display = ctk.CTkButton(
+        master=floating_frame,
+        text="0",
+        width=40,
+        height=40,
+        font=("Helvetica", 29, "bold"),
+        fg_color="#fefefe",
+        text_color="black",
+        hover=False,
+        corner_radius=0,
+        command=generate,
+        anchor="center"
+    )
+    display.grid(row=0, column=1, sticky="nsew", padx=0)
 
-# Bind generate to the number (so clicking it doesn’t start drag)
-display.bind("<Button-1>", generate)
+    # Close button (right)
+    close_btn = ctk.CTkButton(
+        master=floating_frame,
+        text="✕",
+        width=8,
+        height=8,
+        font=("Helvetica", 10),
+        fg_color="#fefefe",
+        text_color="gray",
+        hover_color="#ddd",
+        corner_radius=0,
+        command=close_window
+    )
+    close_btn.grid(row=0, column=2, sticky="ne", padx=0)
 
-# Escape closes the app
-app.bind("<Escape>", lambda e: app.destroy())
+    # Bind number button to click (so it doesn’t interfere with drag)
+    display.bind("<Button-1>", lambda e: generate())
 
-# Launch it
+    # Escape closes window
+    win.bind("<Escape>", lambda e: win.destroy())
+
+    return win
+
+# Main app root
+app = ctk.CTk()
+app.withdraw()
+
+# Start with one window
+create_rng_window()
+
 app.mainloop()
