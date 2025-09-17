@@ -1,0 +1,24 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+.env/
+.venv/
+env/
+
+# IDE/editor configs (optional but recommended)
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
