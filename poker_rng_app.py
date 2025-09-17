@@ -3,9 +3,21 @@ import random
 import ctypes
 from ctypes import windll
 from PIL import Image, ImageTk
+import sys
+import os
 
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
+
+
+def resource_path(relative_path):
+    """ Get the absolute path to resource, works for dev and PyInstaller """
+    try:
+        # PyInstaller stores files in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 def create_rng_window(offset_x=None, offset_y=None):
     win = ctk.CTkToplevel()
@@ -94,7 +106,8 @@ def create_rng_window(offset_x=None, offset_y=None):
 
 
     # Load your PNG
-    img = Image.open("logo.png").convert("RGB")  # ensure no alpha
+    img_path = resource_path("logo.png")
+    img = Image.open(img_path).convert("RGB")  # ensure no alpha
 
     # Background (solid white)
     background = Image.new("RGB", img.size, (254, 254, 254))  # solid white
