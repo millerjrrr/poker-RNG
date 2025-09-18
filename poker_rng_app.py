@@ -10,6 +10,9 @@ ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
 
+
+
+
 def resource_path(relative_path):
     """ Get the absolute path to resource, works for dev and PyInstaller """
     try:
@@ -82,9 +85,17 @@ def create_rng_window(offset_x=None, offset_y=None):
         new_y = win.winfo_y()
         create_rng_window(offset_x=new_x, offset_y=new_y)
 
+    def keep_on_top():
+        win.lift()
+        win.attributes('-topmost', True)
+        win.after(2000, keep_on_top)  # reapply every 2s
+
+    keep_on_top()
+
     # Transparent root
     transparent_root = ctk.CTkFrame(win, fg_color="white", corner_radius=0)
     transparent_root.pack(fill="both", expand=True)
+
 
     # Floating frame
     floating_frame = ctk.CTkFrame(
