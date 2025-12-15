@@ -1,193 +1,140 @@
-import customtkinter as ctk
+import tkinter as tk
 import random
-import ctypes
-from ctypes import windll
-from PIL import Image, ImageTk
 import sys
 import os
+from PIL import Image, ImageDraw, ImageTk
 
-ctk.set_appearance_mode("light")
-ctk.set_default_color_theme("blue")
+BG = "#640092"
+BG_2 = "#34004d"
+TEXT = "#ffffff"
+PADDING = 3
+RADIUS = 6
+ICON_SIZE = 34
 
-
-
+TRANSPARENT_KEY = "#ff00ff"
 
 
 def resource_path(relative_path):
-    """ Get the absolute path to resource, works for dev and PyInstaller """
     try:
-        # PyInstaller stores files in _MEIPASS
-        base_path = sys._MEIPASS
+        return os.path.join(sys._MEIPASS, relative_path)
     except Exception:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
-
-def create_rng_window(offset_x=None, offset_y=None):
-    win = ctk.CTkToplevel()
-    win.overrideredirect(True)
-    win.wm_attributes("-topmost", True)
-
-   # Window size
-    win_width, win_height = 100, 40
-    screen_width = win.winfo_screenwidth()
-    screen_height = win.winfo_screenheight()
-
-    # Center position if no offset provided
-    if offset_x is None:
-        x = (screen_width - win_width) // 2
-    else:
-        x = offset_x
-
-    if offset_y is None:
-        y = (screen_height - win_height) // 2
-    else:
-        y = offset_y
-
-    win.geometry(f"{win_width}x{win_height}+{x}+{y}")
-
-    # Rounded corners (Windows only)
-    HWND = windll.user32.GetParent(win.winfo_id())
-    windll.dwmapi.DwmSetWindowAttribute(HWND, 2, ctypes.byref(ctypes.c_int(1)), 4)
-
-    # Drag logic (anywhere)
-    def start_move(event):
-        win._drag_start_x = event.x
-        win._drag_start_y = event.y
-
-    def do_move(event):
-        x = win.winfo_pointerx() - win._drag_start_x
-        y = win.winfo_pointery() - win._drag_start_y
-        win.geometry(f"+{x}+{y}")
-
-    win.bind("<Button-1>", start_move)
-    win.bind("<B1-Motion>", do_move)
-
-    # Generate number
-    def generate():
-        number = random.randint(0, 99)
-        display.configure(text=str(number))
-        if number < 25:
-            display.configure(text_color="black")
-        elif number < 50:
-            display.configure(text_color="red")
-        elif number < 75:
-            display.configure(text_color="blue")
-        else:
-            display.configure(text_color="green")
-
-    # Close window
-    def close_window():
-        win.destroy()
-
-    # Clone window next to current window
-    def clone_window():
-        new_x = win.winfo_x() + win.winfo_width() + 10
-        new_y = win.winfo_y()
-        create_rng_window(offset_x=new_x, offset_y=new_y)
-
-    def keep_on_top():
-        win.lift()
-        win.attributes('-topmost', True)
-        win.after(2000, keep_on_top)  # reapply every 2s
-
-    keep_on_top()
-
-    # Transparent root
-    transparent_root = ctk.CTkFrame(win, fg_color="white", corner_radius=0)
-    transparent_root.pack(fill="both", expand=True)
+        return os.path.abspath(relative_path)
 
 
-    # Floating frame
-    floating_frame = ctk.CTkFrame(
-        master=transparent_root,
-        fg_color="#fefefe",
-        corner_radius=0,
-        width=win_width,
-        height=win_height
-    )
-    floating_frame.place(relx=0.5, rely=0.5, anchor="center")
+class RNGWindow:
+    def __init__(self, root, x=None, y=None):
+        self.root = root
+        self.root.overrideredirect(True)
+        self.root.wm_attributes("-topmost", True)
+        self.root.configure(bg=TRANSPARENT_KEY)
+        self.root.wm_attributes("-transparentcolor", TRANSPARENT_KEY)
 
-    # Layout: 3 sections
-    floating_frame.grid_rowconfigure(0, weight=1)
-    floating_frame.grid_columnconfigure(0, weight=1)
-    floating_frame.grid_columnconfigure(1, weight=2)
-    floating_frame.grid_columnconfigure(2, weight=1)
+        self.width = 100
+        self.height = ICON_SIZE + PADDING * 2
+
+        sw = root.winfo_screenwidth()
+        sh = root.winfo_screenheight()
+        x = x if x is not None else (sw - self.width) // 2
+        y = y if y is not None else (sh - self.height) // 2
+
+        self.root.geometry(f"{self.width}x{self.height}+{x}+{y}")
+
+        self.canvas = tk.Canvas(
+            root,
+            width=self.width,
+            height=self.height,
+            bg=TRANSPARENT_KEY,
+            highlightthickness=0
+        )
+        self.canvas.pack()
+
+        self.draw_container()
+        self.load_icon()
+        self.draw_ui()
+        self.make_draggable()
+
+    # ---------- visuals ----------
+
+    def draw_container(self):
+        img = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+
+        d.rounded_rectangle(
+            (0, 0, self.width, self.height),
+            radius=RADIUS,
+            fill=BG,
+            outline=BG_2,
+            width=2
+        )
+
+        self.bg_img = ImageTk.PhotoImage(img)
+        self.canvas.create_image(self.width // 2, self.height // 2, image=self.bg_img)
+
+    def load_icon(self):
+        path = resource_path("logo.png")
+        icon = Image.open(path).convert("RGBA").resize((ICON_SIZE, ICON_SIZE))
+        self.icon_img = ImageTk.PhotoImage(icon)
+
+    def draw_ui(self):
+        y = self.height // 2
+
+        # icon (double-click clones)
+        self.icon = self.canvas.create_image(
+            ICON_SIZE // 2 + 5, y, image=self.icon_img
+        )
+        self.canvas.tag_bind(self.icon, "<Double-Button-1>", self.clone)
+
+        # number
+        self.number = self.canvas.create_text(
+            self.width *0.6,
+            y,
+            text="0",
+            fill=TEXT,
+            font=("Helvetica", 22, "bold")
+        )
+        self.canvas.tag_bind(self.number, "<Button-1>", self.generate)
+
+        # close
+        self.close_btn = self.canvas.create_text(
+            self.width - 12,
+            10,
+            text="✕",
+            fill=TEXT,
+            font=("Helvetica", 10, "bold")
+        )
+        self.canvas.tag_bind(self.close_btn, "<Button-1>", self.close)
+
+    # ---------- behavior ----------
+
+    def generate(self, event=None):
+        self.canvas.itemconfig(self.number, text=str(random.randint(0, 99)))
+
+    def clone(self, event=None):
+        x = self.root.winfo_x() + self.width + 10
+        y = self.root.winfo_y()
+
+        new_root = tk.Toplevel()
+        RNGWindow(new_root, x=x, y=y)
+
+    def close(self, event=None):
+        self.root.destroy()
+
+    def make_draggable(self):
+        self.root.bind("<ButtonPress-1>", self.start_move)
+        self.root.bind("<B1-Motion>", self.do_move)
+
+    def start_move(self, e):
+        self._x = e.x
+        self._y = e.y
+
+    def do_move(self, e):
+        x = self.root.winfo_pointerx() - self._x
+        y = self.root.winfo_pointery() - self._y
+        self.root.geometry(f"+{x}+{y}")
 
 
-
-
-    # Load your PNG
-    img_path = resource_path("logo.png")
-    img = Image.open(img_path).convert("RGB")  # ensure no alpha
-
-    # Background (solid white)
-    background = Image.new("RGB", img.size, (254, 254, 254))  # solid white
-
-    # Paste logo on background WITHOUT mask
-    background.paste(img, (0, 0))
-
-    # Create CTkImage (same for light and dark to avoid recoloring)
-    spawn_image = ctk.CTkImage(light_image=background, dark_image=background, size=(40, 40))
-
-    # Spawn button with image
-    spawn_btn = ctk.CTkButton(
-        master=floating_frame,
-        text="",  # no text
-        width=40,
-        height=40,
-        image=spawn_image,
-        fg_color="#fefefe",
-        hover=False,
-        corner_radius=0,
-    )
-    spawn_btn.grid(row=0, column=0, sticky="w", padx=0)
-    # Bind double-click to spawn
-    spawn_btn.bind("<Double-Button-1>", lambda e: clone_window())
-
-    # Number display (middle)
-    display = ctk.CTkButton(
-        master=floating_frame,
-        text="0",
-        width=40,
-        height=40,
-        font=("Helvetica", 29, "bold"),
-        fg_color="#fefefe",
-        text_color="black",
-        hover=False,
-        corner_radius=0,
-        command=generate,
-        anchor="center"
-    )
-    display.grid(row=0, column=1, sticky="nsew", padx=0)
-
-    # Close button (right)
-    close_btn = ctk.CTkButton(
-        master=floating_frame,
-        text="✕",
-        width=8,
-        height=8,
-        font=("Helvetica", 10),
-        fg_color="#fefefe",
-        text_color="gray",
-        hover_color="#ddd",
-        corner_radius=0,
-        command=close_window
-    )
-    close_btn.grid(row=0, column=2, sticky="ne", padx=0)
-
-    # Bind number button to click (so it doesn’t interfere with drag)
-    display.bind("<Button-1>", lambda e: generate())
-
-    # Escape closes window
-    win.bind("<Escape>", lambda e: win.destroy())
-
-    return win
-
-# Main app root
-app = ctk.CTk()
-app.withdraw()
-
-# Start with one window
-create_rng_window()
-
-app.mainloop()
+# ---------- run ----------
+if __name__ == "__main__":
+    root = tk.Tk()
+    RNGWindow(root)
+    root.mainloop()
