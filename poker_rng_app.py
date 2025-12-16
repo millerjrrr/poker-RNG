@@ -52,6 +52,7 @@ class RNGWindow:
         self.load_icon()
         self.draw_ui()
         self.make_draggable()
+        self.enforce_topmost()
 
     # ---------- visuals ----------
 
@@ -131,6 +132,17 @@ class RNGWindow:
         x = self.root.winfo_pointerx() - self._x
         y = self.root.winfo_pointery() - self._y
         self.root.geometry(f"+{x}+{y}")
+
+    def enforce_topmost(self):
+        try:
+            self.root.wm_attributes("-topmost", False)
+            self.root.wm_attributes("-topmost", True)
+            self.root.lift()
+        except:
+            pass
+
+        # run again every 800ms
+        self.root.after(800, self.enforce_topmost)
 
 
 # ---------- run ----------
